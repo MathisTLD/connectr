@@ -1,13 +1,14 @@
 {
-  "name": "connectr",
-  "version": "0.0.7",
+  "name": "@mathistld/connectr",
+  "version": "0.1.0",
   "description": "Connect wrapper that adds ability to insert middleware at arbitrary positions.\"",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postversion": "npm publish && git push && git push --tags"
   },
-  "repository": "https://github.com/olalonde/connectr.git",
-  "website": "https://github.com/olalonde/connectr",
+  "repository": "https://github.com/MathisTLD/connectr",
+  "website": "https://github.com/MathisTLD/connectr",
   "keywords": [
     "connect",
     "express"
@@ -17,11 +18,11 @@
     {
       "name": "Michael Robinson",
       "email": "mike@pagesofinterest.net"
+    },
+    {
+      "name": "MathisTLD"
     }
   ],
   "license": "MIT",
-  "devDependencies": {
-    "connect": "^3.7.0",
-    "debug": "^4.1.1"
-  }
+  "devDependencies": {}
 }

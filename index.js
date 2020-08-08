@@ -1,6 +1,4 @@
-var debug = require("debug");
-
-module.exports = function(app) {
+module.exports = function (app) {
   return new Connectr(app);
 };
 
@@ -19,7 +17,7 @@ class Connectr {
   }
 }
 
-Connectr.prototype.use = function(...args) {
+Connectr.prototype.use = function (...args) {
   //this.currentFn = fn
   //
   //forward call to connect.use
@@ -119,7 +117,7 @@ Connectr.prototype.use = function(...args) {
  *
  * @param {String} label
  */
-Connectr.prototype.remove = function(label) {
+Connectr.prototype.remove = function (label) {
   for (var i = 0; i < this.stack.length; i++) {
     if (this.stack[i].handle.label === label) {
       this.stack.splice(i, 1);
@@ -128,12 +126,12 @@ Connectr.prototype.remove = function(label) {
   return this;
 };
 
-Connectr.prototype.index = function(index) {
+Connectr.prototype.index = function (index) {
   this.currentFn = this.stack[index].handle;
   return this;
 };
 
-Connectr.prototype.as = function(label) {
+Connectr.prototype.as = function (label) {
   try {
     this.currentFn.label = label;
     return this;
@@ -145,17 +143,17 @@ Connectr.prototype.as = function(label) {
 /**
  * Adds a middleware at the beginning of the stack
  */
-Connectr.prototype.first = function() {
+Connectr.prototype.first = function () {
   this._first = true;
   return this;
 };
 
-Connectr.prototype.before = function(label) {
+Connectr.prototype.before = function (label) {
   this._before = label;
   return this;
 };
 
-Connectr.prototype.after = function(label) {
+Connectr.prototype.after = function (label) {
   this._after = label;
   return this;
 };
