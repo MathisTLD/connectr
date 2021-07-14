@@ -134,7 +134,7 @@ class Connectr {
   remove(f) {
     const find =
       typeof f === "string" ? (layer) => layer.handle.label === f : f;
-    if (typeof f !== "function")
+    if (typeof find !== "function")
       throw new TypeError("please provide a function or a middleware label");
     const i = this.stack.findIndex(find, this);
     if (i >= 0) this.stack.splice(i, 1);
