@@ -15,145 +15,183 @@ class Connectr {
       if (!this.stack) throw new Error("Cannot find stack");
     }
   }
-}
-
-Connectr.prototype.use = function (...args) {
-  //this.currentFn = fn
-  //
-  //forward call to connect.use
-  //lookup connect.stack if there is a fn with before or after properties
-  //and move it at right place
-  //once it is moved at right position, remove the before/after property
-  //clear this.before and this.after
-
-  // checking args
-  if (!args.length)
-    throw new Error("WTF are you doing bruh please provide a middleware");
-  if (typeof args[0] === "string") {
-    let route = args.shift();
-  }
-  let fns = args;
-  if (fns.length !== 1)
-    throw new Error("please provide exactly ONE middleware");
-  let fn = fns[0];
-
-  // save currentFn in case there is a .as call after .use
-  this.currentFn = fn;
-
-  // save before/after as properties attached to the fn
-  if (this._first) fn._first = true;
-  if (this._before) fn._before = this._before;
-  if (this._after) fn._after = this._after;
-
-  delete this._first;
-  delete this._before;
-  delete this._after;
-
-  // forward call to app.use
-  this.app.use.apply(this.app, arguments);
-
   // lookup connect.stack if there is a fn with before or after properties
   // and move it at right place
-  // @todo: optimize
-  function order_stack(stack) {
-    // Find a handle with a before or after property
-    for (var i = 0; i < stack.length; i++) {
-      var handle = stack[i].handle;
+  orderStack(stack = this.stack) {
+    const n = stack.length;
+    // ensure at first of the stack
+    let firstFirst = -1,
+      lastFirst = -1,
+      firstLast = -1,
+      lastLast = -1;
+    for (let i = 0; i < n; i++) {
+      const handle = stack[i].handle;
       if (handle._first) {
-        // remove handle from current position
-        var mid = stack.splice(i, 1)[0];
-        // insert it at begining of stack
-        stack.unshift(mid);
-
-        // remove property so we don't order it again later
-        delete handle._first;
-        // for debugging
-        handle._moved_first = true;
-
-        // Continue ordering for remaining handles
-        return order_stack(stack);
-      } else if (handle._before || handle._after) {
-        var position = null;
-        if (handle._before) {
-          position = "_before";
-        } else if (handle._after) {
-          position = "_after";
-        }
-
-        var label = handle[position];
-
-        for (var j = 0; j < stack.length; j++) {
-          if (stack[j].handle.label === label) {
-            // insert before index = j
-            // insert after index = j + 1
-            var new_index = j;
-            if (position == "_after") new_index++;
-
-            // move handle in new position
-            // http://stackoverflow.com/questions/5306680/move-an-array-element-from-one-array-position-to-another
-            stack.splice(new_index, 0, stack.splice(i, 1)[0]);
-
-            // remove _before/_after property so we don't order ad infinitum
-            handle["_moved" + position] = handle[position]; // for debugging
-            break;
-          }
-        }
-        delete handle[position];
-        // Continue ordering for remaining handles
-        return order_stack(stack);
+        if (firstFirst < 0) firstFirst = i;
+        lastFirst = i;
+      }
+      if (handle._last) {
+        if (firstLast < 0) firstLast = i;
+        lastLast = i;
       }
     }
-    // didn't find any handle with a before/after property => done ordering
-    return true;
-  }
 
-  order_stack(this.stack);
-
-  return this;
-};
-
-/**
- * Removes middleware labeled `label`
- *
- * @param {String} label
- */
-Connectr.prototype.remove = function (label) {
-  for (var i = 0; i < this.stack.length; i++) {
-    if (this.stack[i].handle.label === label) {
-      this.stack.splice(i, 1);
+    if (firstFirst > 0) {
+      stack.splice(
+        lastFirst - firstFirst + 1,
+        0,
+        ...stack.splice(0, firstFirst)
+      );
+    }
+    if (lastLast >= 0 && lastLast < n - 1) {
+      stack.splice(firstLast, 0, ...stack.splice(lastLast + 1));
+    }
+    // Find a handle with a before or after property
+    for (let i = 0; i < n; i++) {
+      const handle = stack[i].handle;
+      if (handle._first) {
+        // properly order handles with _first flag
+        if (!handle._moved_first) {
+          if (i > 0) {
+            // insert after last handle with _first tag
+            for (let j = i - 1; j >= 0; j--) {
+              if (stack[j].handle._moved_first) {
+                stack.splice(j + 1, 0, ...stack.splice(i, 1));
+                break;
+              } else if (j === 0) stack.unshift(stack.splice(i, 1)[0]);
+            }
+          }
+          handle._moved_first = true;
+        }
+      } else if (handle._last) {
+        // properly order handles with _last flag
+        if (!handle._moved_last) {
+          if (i !== n - 1) {
+            // insert last
+            stack.splice(n - 1, 0, ...stack.splice(i, 1));
+          }
+          handle._moved_last = true;
+        }
+      } else if (handle._before || handle._after) {
+        const pos = handle._before ? "_before" : "_after";
+        // already moved
+        if (handle["_moved" + pos]) break;
+        const find = handle[pos];
+        const new_index =
+          stack.findIndex(find, this) + (pos === "_before" ? -1 : 1);
+        if (new_index >= 0) {
+          // move handle in new position
+          // http://stackoverflow.com/questions/5306680/move-an-array-element-from-one-array-position-to-another
+          stack.splice(new_index, 0, ...stack.splice(i, 1));
+          // item at stack[i] should also be ordered so prevent for loop to increase
+          // FIXME: can this provoke endless loop ?
+          if (new_index > i) i--;
+          handle["_moved" + pos] = find;
+        }
+      }
     }
   }
-  return this;
-};
+  use(...args) {
+    // checking args
+    const fns = args.filter((f) => typeof f === "function");
+    if (!fns.length) throw new TypeError("Please provide a middleware");
 
-Connectr.prototype.index = function (index) {
-  this.currentFn = this.stack[index].handle;
-  return this;
-};
+    // save current handles in case there is a .as call after .use
+    this._current = fns;
+    // console.log(
+    //   this._current,
+    //   Object.fromEntries(
+    //     ["_first", "_last", "_before", "_after"].map((key) => [key, this[key]])
+    //   )
+    // );
+    // save before/after as properties attached to the fns
+    fns.forEach((fn, i) => {
+      if (this._first) fn._first = true;
+      if (this._last) fn._last = true;
+      if (i === 0) {
+        if (this._before) fn._before = this._before;
+        if (this._after) fn._after = this._after;
+      } else {
+        fn._after = (layer) => layer.handle === fns[i - 1];
+      }
+    });
+    delete this._first;
+    delete this._last;
+    delete this._before;
+    delete this._after;
 
-Connectr.prototype.as = function (label) {
-  try {
-    this.currentFn.label = label;
+    // forward call to app.use
+    this.app.use.apply(this.app, arguments);
+
+    this.orderStack();
     return this;
-  } catch (e) {
-    throw new Error(".as() must be used after a .use() call.");
   }
-};
-
-/**
- * Adds a middleware at the beginning of the stack
- */
-Connectr.prototype.first = function () {
-  this._first = true;
-  return this;
-};
-
-Connectr.prototype.before = function (label) {
-  this._before = label;
-  return this;
-};
-
-Connectr.prototype.after = function (label) {
-  this._after = label;
-  return this;
-};
+  /**
+   * Removes middleware labeled `label`
+   *
+   * @param {String} label
+   */
+  remove(f) {
+    const find =
+      typeof f === "string" ? (layer) => layer.handle.label === f : f;
+    if (typeof f !== "function")
+      throw new TypeError("please provide a function or a middleware label");
+    const i = this.stack.findIndex(find, this);
+    if (i >= 0) this.stack.splice(i, 1);
+    return this;
+  }
+  index(index) {
+    this._current = [this.stack[index].handle];
+    return this;
+  }
+  as(...labels) {
+    if (this._current) {
+      if (labels.length > this._current.length)
+        throw new Error("too many labels");
+      else labels.forEach((label, i) => (this._current[i].label = label));
+    } else {
+      throw new Error(".as() must be used after a .use() call.");
+    }
+    return this;
+  }
+  /**
+   * Adds a middleware at the beginning of the stack
+   */
+  first() {
+    this._first = true;
+    return this;
+  }
+  /**
+   * Adds a middleware at the end of the stack and make sure it will stay there
+   */
+  last() {
+    this._last = true;
+    return this;
+  }
+  before(f) {
+    switch (typeof f) {
+      case "function":
+        this._before = f;
+        break;
+      case "string":
+        this._before = (layer) => layer.handle.label === f;
+        break;
+      default:
+        throw new TypeError("please provide a function or a middleware label");
+    }
+    return this;
+  }
+  after(f) {
+    switch (typeof f) {
+      case "function":
+        this._after = f;
+        break;
+      case "string":
+        this._after = (layer) => layer.handle.label === f;
+        break;
+      default:
+        throw new TypeError("please provide a function or a middleware label");
+    }
+    return this;
+  }
+}
