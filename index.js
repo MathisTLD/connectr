@@ -20,72 +20,40 @@ class Connectr {
   orderStack(stack = this.stack) {
     const n = stack.length;
     // ensure at first of the stack
-    let firstFirst = -1,
-      lastFirst = -1,
-      firstLast = -1,
-      lastLast = -1;
-    for (let i = 0; i < n; i++) {
+    const first = [];
+    const last = [];
+    for (let i = 0; i < stack.length; i++) {
       const handle = stack[i].handle;
       if (handle._first) {
-        if (firstFirst < 0) firstFirst = i;
-        lastFirst = i;
+        first.push(...stack.splice(i, 1));
+        i--;
+      } else if (handle._last) {
+        last.push(...stack.splice(i, 1));
+        i--;
       }
-      if (handle._last) {
-        if (firstLast < 0) firstLast = i;
-        lastLast = i;
-      }
     }
-
-    if (firstFirst > 0) {
-      stack.splice(
-        lastFirst - firstFirst + 1,
-        0,
-        ...stack.splice(0, firstFirst)
-      );
-    }
-    if (lastLast >= 0 && lastLast < n - 1) {
-      stack.splice(firstLast, 0, ...stack.splice(lastLast + 1));
-    }
+    stack.unshift(...first);
+    stack.push(...last);
     // Find a handle with a before or after property
     for (let i = 0; i < n; i++) {
       const handle = stack[i].handle;
-      if (handle._first) {
-        // properly order handles with _first flag
-        if (!handle._moved_first) {
-          if (i > 0) {
-            // insert after last handle with _first tag
-            for (let j = i - 1; j >= 0; j--) {
-              if (stack[j].handle._moved_first) {
-                stack.splice(j + 1, 0, ...stack.splice(i, 1));
-                break;
-              } else if (j === 0) stack.unshift(stack.splice(i, 1)[0]);
-            }
-          }
-          handle._moved_first = true;
-        }
-      } else if (handle._last) {
-        // properly order handles with _last flag
-        if (!handle._moved_last) {
-          if (i !== n - 1) {
-            // insert last
-            stack.splice(n - 1, 0, ...stack.splice(i, 1));
-          }
-          handle._moved_last = true;
-        }
-      } else if (handle._before || handle._after) {
+      if (handle._before || handle._after) {
         const pos = handle._before ? "_before" : "_after";
         // already moved
         if (handle["_moved" + pos]) break;
         const find = handle[pos];
-        const new_index =
-          stack.findIndex(find, this) + (pos === "_before" ? -1 : 1);
-        if (new_index >= 0) {
+        const index = stack.findIndex(find, this);
+        if (index >= 0) {
           // move handle in new position
           // http://stackoverflow.com/questions/5306680/move-an-array-element-from-one-array-position-to-another
-          stack.splice(new_index, 0, ...stack.splice(i, 1));
+          stack.splice(
+            index + (pos === "_after" ? 1 : 0),
+            0,
+            ...stack.splice(i, 1)
+          );
           // item at stack[i] should also be ordered so prevent for loop to increase
           // FIXME: can this provoke endless loop ?
-          if (new_index > i) i--;
+          if (index > i) i--;
           handle["_moved" + pos] = find;
         }
       }
@@ -98,12 +66,7 @@ class Connectr {
 
     // save current handles in case there is a .as call after .use
     this._current = fns;
-    // console.log(
-    //   this._current,
-    //   Object.fromEntries(
-    //     ["_first", "_last", "_before", "_after"].map((key) => [key, this[key]])
-    //   )
-    // );
+
     // save before/after as properties attached to the fns
     fns.forEach((fn, i) => {
       if (this._first) fn._first = true;
@@ -152,6 +115,7 @@ class Connectr {
     } else {
       throw new Error(".as() must be used after a .use() call.");
     }
+    this.orderStack();
     return this;
   }
   /**
@@ -175,6 +139,7 @@ class Connectr {
         break;
       case "string":
         this._before = (layer) => layer.handle.label === f;
+        this._before.label = f; // used for debug
         break;
       default:
         throw new TypeError("please provide a function or a middleware label");
@@ -188,6 +153,7 @@ class Connectr {
         break;
       case "string":
         this._after = (layer) => layer.handle.label === f;
+        this._after.label = f; // used for debug
         break;
       default:
         throw new TypeError("please provide a function or a middleware label");
