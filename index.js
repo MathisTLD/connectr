@@ -59,9 +59,11 @@ class Connectr {
       }
     }
   }
-  use(...args) {
+  use() {
+    const path = typeof arguments[0] !== "function" ? arguments[0] : null;
+
     // checking args
-    const fns = args.filter((f) => typeof f === "function");
+    const fns = arguments.flat().filter((f) => typeof f === "function");
     if (!fns.length) throw new TypeError("Please provide a middleware");
 
     // save current handles in case there is a .as call after .use
@@ -84,7 +86,10 @@ class Connectr {
     delete this._after;
 
     // forward call to app.use
-    this.app.use.apply(this.app, arguments);
+    const args = [];
+    if (path !== null) args.push(path);
+    args.push(...fns);
+    this.app.use.apply(this.app, args);
 
     this.orderStack();
     return this;
