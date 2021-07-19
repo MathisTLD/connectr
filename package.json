@@ -4,7 +4,7 @@
   "description": "Connect wrapper that adds ability to insert middleware at arbitrary positions.\"",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node test/index.js",
     "postversion": "npm publish && git push && git push --tags"
   },
   "repository": "https://github.com/MathisTLD/connectr",
@@ -24,5 +24,7 @@
     }
   ],
   "license": "MIT",
-  "devDependencies": {}
+  "devDependencies": {
+    "express": "^4.17.1"
+  }
 }

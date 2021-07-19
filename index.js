@@ -63,27 +63,13 @@ class Connectr {
     const path = typeof arguments[0] !== "function" ? arguments[0] : null;
 
     // checking args
-    const fns = arguments.flat().filter((f) => typeof f === "function");
+    const fns = Array.from(arguments)
+      .flat()
+      .filter((f) => typeof f === "function");
     if (!fns.length) throw new TypeError("Please provide a middleware");
 
     // save current handles in case there is a .as call after .use
     this._current = fns;
-
-    // save before/after as properties attached to the fns
-    fns.forEach((fn, i) => {
-      if (this._first) fn._first = true;
-      if (this._last) fn._last = true;
-      if (i === 0) {
-        if (this._before) fn._before = this._before;
-        if (this._after) fn._after = this._after;
-      } else {
-        fn._after = (layer) => layer.handle === fns[i - 1];
-      }
-    });
-    delete this._first;
-    delete this._last;
-    delete this._before;
-    delete this._after;
 
     // forward call to app.use
     const args = [];
@@ -127,41 +113,82 @@ class Connectr {
    * Adds a middleware at the beginning of the stack
    */
   first() {
-    this._first = true;
+    if (this._current) {
+      this._current.forEach((fn, i) => {
+        fn._first = true;
+      });
+      this.orderStack();
+    } else {
+      throw new Error(".first() must be called after .use()");
+    }
     return this;
   }
   /**
    * Adds a middleware at the end of the stack and make sure it will stay there
    */
   last() {
-    this._last = true;
+    if (this._current) {
+      this._current.forEach((fn, i) => {
+        fn._last = true;
+      });
+      this.orderStack();
+    } else {
+      throw new Error(".first() must be called after .use()");
+    }
     return this;
   }
   before(f) {
+    let find;
     switch (typeof f) {
       case "function":
-        this._before = f;
+        find = f;
         break;
       case "string":
-        this._before = (layer) => layer.handle.label === f;
-        this._before.label = f; // used for debug
+        find = (layer) => layer.handle.label === f;
+        find.label = f; // used for debug
         break;
       default:
         throw new TypeError("please provide a function or a middleware label");
     }
+    if (this._current) {
+      this._current.forEach((fn, i) => {
+        if (i === 0) {
+          fn._before = find;
+        } else {
+          fn._after = (layer) => layer.handle === this._current[i - 1];
+        }
+      });
+      this.orderStack();
+    } else {
+      throw new Error(".before() must be called after .use()");
+    }
+
     return this;
   }
   after(f) {
+    let find;
     switch (typeof f) {
       case "function":
-        this._after = f;
+        find = f;
         break;
       case "string":
-        this._after = (layer) => layer.handle.label === f;
-        this._after.label = f; // used for debug
+        find = (layer) => layer.handle.label === f;
+        find.label = f; // used for debug
         break;
       default:
         throw new TypeError("please provide a function or a middleware label");
+    }
+    if (this._current) {
+      this._current.forEach((fn, i) => {
+        if (i === 0) {
+          fn._after = find;
+        } else {
+          fn._after = (layer) => layer.handle === this._current[i - 1];
+        }
+      });
+      this.orderStack();
+    } else {
+      throw new Error(".after() must be called after .use()");
     }
     return this;
   }
