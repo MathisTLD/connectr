@@ -32,6 +32,12 @@ class Connectr {
         i--;
       }
     }
+    // order first and last middlewares
+    first.sort((a, b) => (b.handle._moved ? 1 : 0) - (a.handle._moved ? 1 : 0));
+    first.forEach((l) => (l.handle._moved = true));
+    last.sort((a, b) => (b.handle._moved ? 1 : 0) - (a.handle._moved ? 1 : 0));
+    last.forEach((l) => (l.handle._moved = true));
+
     stack.unshift(...first);
     stack.push(...last);
     // Find a handle with a before or after property
